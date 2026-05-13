@@ -1,30 +1,32 @@
-# MetamaterialCAD
+# MetamaterialCAD MATLAB-CST
 
-MATLAB-CST framework for parametric metamaterial design using:
-
-- Gielis supershapes
-- Spiral resonators
-- Split square ring resonators (SSRR)
-- SRR / CSRR topologies
-- NxM metamaterial arrays
-- CST Studio automation
+Parametric metamaterial CAD framework using MATLAB and CST.
 
 ## Features
 
-- Parametric GUI
-- Analytical geometry generation
+- Gielis supershapes
+- Spiral resonators
+- Square SRR
+- SRR / CSRR
+- NxM arrays
 - CST COM automation
-- Substrate generation
-- Array synthesis
-- Manufacturable conductive regions
 
-## Requirements
+## Architecture
 
-- MATLAB
-- CST Studio Suite
-- Windows COM support
+```text
+GUI
+ ├── Shared Params
+ ├── Geometry Params
+ ├── Preview
+ └── Export
 
-## Launch
+Geometry Engine
+ ├── Gielis
+ ├── Spiral
+ └── SSRR
 
-```matlab
-MetamaterialCAD
+CST Engine
+ ├── Curves
+ ├── Sheets
+ ├── Boolean operations
+ └── Materials

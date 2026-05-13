@@ -1,4 +1,6 @@
 function MetamaterialCAD()
+    addpath('../geometry');
+    addpath('../cst');
 
     % ============================================================
     % MAIN WINDOW
