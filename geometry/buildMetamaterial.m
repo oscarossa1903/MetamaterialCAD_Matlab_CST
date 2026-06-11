@@ -89,33 +89,26 @@ elseif strcmp(params.type,'spiral')
     % SQUARE SRR
     % ============================================================
 elseif strcmp(params.type,'ssrr')
-
     if params.spacing <= params.thickness
-
-        params.spacing = ...
-            params.thickness + 0.05;
+        params.spacing = params.thickness + 0.05;
     end
-
     for rIdx = 0:(params.numRings-1)
-
-        side = params.side - ...
-            rIdx * ...
-            (params.spacing + params.thickness);
-
-        if side <= 2*params.thickness
-
+        side = params.side - rIdx * (params.spacing + params.thickness);
+        
+        % Termination check: ensure room for thickness and the gap
+        if side <= (2 * params.thickness + params.gap)
             break;
         end
-
-        % ========================================================
-        % EXACT POLYGONAL GEOMETRY
-        % ========================================================
-        [xo,yo,xi,yi] = ...
-            generateSquareSRR( ...
+        
+        % Generate the SRR with a gap
+        % You can specify a constant position like 'right', 
+        % or pass a dynamic value based on rIdx.
+        [xo, yo, xi, yi] = generateSquareSRR(...
             side, ...
             params.thickness, ...
-            params.gap);
-
+            params.gap, ...
+            'right'); 
+            
         geom{end+1} = struct( ...
             'outerX', xo, ...
             'outerY', yo, ...

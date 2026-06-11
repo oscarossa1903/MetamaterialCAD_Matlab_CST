@@ -1,18 +1,21 @@
 function MetamaterialCAD()
+    % Add directories to MATLAB path
     addpath('../geometry');
     addpath('../cst');
+    addpath('../analytical'); % Dynamically adds the modular analytical folder
+    %addpath('analytical');    % Fallback if running directly from parent folder
     
     % ============================================================
     % MAIN WINDOW
     % ============================================================
     fig = uifigure(...
-        'Name','Metamaterial CAD',...
+        'Name','Metamaterial CAD with Real-Time EM Estimator',...
         'Position',[100 100 1450 850]);
     % ============================================================
     % AXES
     % ============================================================
     ax = uiaxes(fig,...
-        'Position',[470 60 940 760]);
+        'Position',[470 120 940 700]); % Adjusted height to fit HUD
     axis(ax,'equal');
     grid(ax,'on');
     hold(ax,'on');
@@ -61,7 +64,7 @@ function MetamaterialCAD()
         'Rings',...
         2,[1 10],...
         130,...
-        true); % Enforced strict integer
+        true); % Enforce strict integer rings
     thicknessSlider = createSlider(...
         sharedPanel,...
         'Thickness',...
@@ -71,7 +74,7 @@ function MetamaterialCAD()
         sharedPanel,...
         'Gap (deg)',...
         20,[1 180],...
-        50); % Restored realistic angular limits
+        50); % Restored realistic limits
     spacingSlider = createSlider(...
         sharedPanel,...
         'Spacing',...
@@ -88,7 +91,7 @@ function MetamaterialCAD()
         'm',...
         6,[1 20],...
         180,...
-        true); % strict integer
+        true); % Enforce strict integer corners
     n1Slider = createSlider(...
         gielisPanel,...
         'n1',...
@@ -126,7 +129,7 @@ function MetamaterialCAD()
         'Turns',...
         4,[1 15],...
         120,...
-        true); % Enforced strict integer turns for realistic modeling
+        true); % Enforce strict integer turns
     offsetSlider = createSlider(...
         spiralPanel,...
         'Offset',...
@@ -161,13 +164,13 @@ function MetamaterialCAD()
         'Nx',...
         3,[1 20],...
         70,...
-        true); % Enforced strict integer array elements
+        true); % Enforce integer grid sizes
     NySlider = createSlider(...
         arrayPanel,...
         'Ny',...
         3,[1 20],...
         35,...
-        true); % Enforced strict integer array elements
+        true); % Enforce integer grid sizes
     dxSlider = createSlider(...
         arrayPanel,...
         'dx',...
@@ -189,6 +192,26 @@ function MetamaterialCAD()
         'Size',...
         50,[5 200],...
         0);
+    % ============================================================
+    % ANALYTICAL REAL-TIME HUD
+    % ============================================================
+    hudPanel = uipanel(fig,...
+        'Title','Analytical First-Guess Engine (PEEC & Babinet Duality)',...
+        'Position',[470 10 750 95]);
+    
+    f0Label = uilabel(hudPanel,...
+        'Text','Estimated Resonance (f0): -- GHz',...
+        'FontWeight','bold',...
+        'FontSize',13,...
+        'Position',[15 45 400 25]);
+    
+    lLabel = uilabel(hudPanel,...
+        'Text','Effective Inductance (L): -- nH',...
+        'Position',[15 15 300 22]);
+    
+    cLabel = uilabel(hudPanel,...
+        'Text','Effective Capacitance (C): -- pF',...
+        'Position',[350 15 300 22]);
     % ============================================================
     % EXPORT BUTTON
     % ============================================================
@@ -328,6 +351,48 @@ function MetamaterialCAD()
                     'EdgeColor','none');
             end
         end
+        
+        % ========================================================
+        % MODULAR EM ESTIMATION CALL
+        % ========================================================
+        if ~isempty(geom)
+            try
+                % Extract coordinates of the outermost metamaterial ring
+                ring = geom{1};
+                ox = ring.outerX(:); oy = ring.outerY(:);
+                ix = ring.innerX(:); iy = ring.innerY(:);
+                
+                n_pts = min(length(ox), length(ix));
+                x_mid = (ox(1:n_pts) + ix(1:n_pts)) / 2;
+                y_mid = (oy(1:n_pts) + iy(1:n_pts)) / 2;
+                V_skeleton = [x_mid, y_mid] * 1e-3; % Centerline path converted to meters
+                
+                % Strip/slot width (w) and metal cladding thickness (t)
+                w_m = params.thickness * 1e-3; % ring trace width in meters
+                t_m = 35e-6; % Standard 1 oz copper thickness (35 um)
+                
+                % Convert gap angle in degrees to metric gap arc length (g)
+                r_mean_m = mean(sqrt(x_mid.^2 + y_mid.^2)) * 1e-3; 
+                gap_m = r_mean_m * params.gap; % Split-gap width in meters
+                
+                % Default substrate permittivity (FR4)
+                substrate_er = 4.4; 
+                
+                % Execute the External Modally-referenced PEEC Solver
+                [f_est, L_eff, C_eff] = universal_rapid_guess(...
+                    V_skeleton, w_m, t_m, gap_m, params.mode, substrate_er);
+                
+                % Update HUD Panels with appropriate scale conversions
+                f0Label.Text = sprintf('Estimated Resonance (f0): %.3f GHz', f_est/1e9);
+                lLabel.Text  = sprintf('Effective Inductance (L): %.3f nH', L_eff*1e9);
+                cLabel.Text  = sprintf('Effective Capacitance (C): %.3f pF', C_eff*1e12);
+            catch
+                f0Label.Text = 'Estimated Resonance (f0): Geometry Error';
+                lLabel.Text  = 'Effective Inductance (L): -- nH';
+                cLabel.Text  = 'Effective Capacitance (C): -- pF';
+            end
+        end
+        
         axis(ax,'equal');
         xlabel(ax,'x (mm)');
         ylabel(ax,'y (mm)');
@@ -392,16 +457,16 @@ function MetamaterialCAD()
         end
     end
 
-    % Inner Snapping Callbacks
+    % Snapping Callback Helpers
     function updateIntegerSlider(src, label)
-        src.Value = round(src.Value); % Snap handle to nearest integer
+        src.Value = round(src.Value);
         set(label,'Text',num2str(src.Value,'%d'));
-        updatePlot(); % Safely trigger redraw inside the scope
+        updatePlot(); 
     end
 
     function updateFloatSlider(src, label)
         set(label,'Text',num2str(src.Value,'%.2f'));
-        updatePlot(); % Safely trigger redraw inside the scope
+        updatePlot(); 
     end
 
-end % <-- FINAL METAMATERIALCAD() END TAG - HELPER FUNCTIONS ARE NOW INTEGRATED
+end % <-- FINAL MAIN FUNCTION END
