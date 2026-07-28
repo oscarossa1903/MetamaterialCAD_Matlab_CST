@@ -2,6 +2,9 @@ function geom = buildMetamaterial(params)
 
 geom = {};
 
+% ============================================================
+% GIELIS
+% ============================================================
 if strcmp(params.type,'gielis')
 
     if params.spacing <= params.thickness
@@ -20,7 +23,6 @@ if strcmp(params.type,'gielis')
         scale = base_radius - radial_offset;
 
         if scale <= params.thickness
-
             break;
         end
 
@@ -35,7 +37,6 @@ if strcmp(params.type,'gielis')
             params.n3, ...
             scale, ...
             params.thickness, ...
-            params.gap, ...
             params.res);
 
         geom{end+1} = struct( ...
@@ -45,9 +46,10 @@ if strcmp(params.type,'gielis')
             'innerY', yi);
     end
 
-    % ============================================================
-    % SPIRAL
-    % ============================================================
+
+% ============================================================
+% SPIRAL
+% ============================================================
 elseif strcmp(params.type,'spiral')
 
     if params.offset <= params.thickness
@@ -74,7 +76,8 @@ elseif strcmp(params.type,'spiral')
         % ========================================================
         [xo,yo,xi,yi] = ...
             buildClosedContours( ...
-            x, y, ...
+            x, ...
+            y, ...
             params.thickness, ...
             params.gap);
 
@@ -85,34 +88,50 @@ elseif strcmp(params.type,'spiral')
             'innerY', yi);
     end
 
-    % ============================================================
-    % SQUARE SRR
-    % ============================================================
+
+% ============================================================
+% SQUARE / RECTANGULAR SRR
+% ============================================================
 elseif strcmp(params.type,'ssrr')
-    if params.spacing <= params.thickness
-        params.spacing = params.thickness + 0.05;
-    end
-    for rIdx = 0:(params.numRings-1)
-        side = params.side - rIdx * (params.spacing + params.thickness);
-        
-        % Termination check: ensure room for thickness and the gap
-        if side <= (2 * params.thickness + params.gap)
-            break;
+
+    requiredFields = { ...
+        'W', ...
+        'L', ...
+        'numRings', ...
+        'spacing', ...
+        'thickness', ...
+        'gapSSRR', ...
+        'gapPositions'};
+
+    for k = 1:length(requiredFields)
+
+        if ~isfield(params,requiredFields{k})
+
+            error( ...
+                'Missing SSRR parameter: params.%s', ...
+                requiredFields{k});
         end
-        
-        % Generate the SRR with a gap
-        % You can specify a constant position like 'right', 
-        % or pass a dynamic value based on rIdx.
-        [xo, yo, xi, yi] = generateSquareSRR(...
-            side, ...
-            params.thickness, ...
-            params.gap, ...
-            'right'); 
-            
-        geom{end+1} = struct( ...
-            'outerX', xo, ...
-            'outerY', yo, ...
-            'innerX', xi, ...
-            'innerY', yi);
     end
+
+
+    geom = generateSquareSRR( ...
+        params.W, ...
+        params.L, ...
+        params.numRings, ...
+        params.spacing, ...
+        params.thickness, ...
+        params.gapSSRR, ...
+        params.gapPositions);
+
+% ============================================================
+% UNKNOWN GEOMETRY
+% ============================================================
+else
+
+    error( ...
+        'Unknown metamaterial geometry type: %s', ...
+        params.type);
+
+end
+
 end

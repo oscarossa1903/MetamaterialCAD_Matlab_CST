@@ -1,64 +1,65 @@
 function [xo,yo,xi,yi] = generateGielisRing( ...
-    m,n1,n2,n3, ...
-    outerRadius, ...
-    thickness, ...
-    gapAngle, ...
+    m,n1,n2,n3,...
+    outerRadius,...
+    thickness,...
     N)
+%GENERATEGIELISRING Generate a closed Gielis ring.
+%
+% INPUTS
+%   m            - Symmetry parameter
+%   n1,n2,n3     - Gielis shape parameters
+%   outerRadius  - Outer radius (mm)
+%   thickness    - Metal width (mm)
+%   N            - Number of samples
+%
+% OUTPUTS
+%   xo,yo        - Closed outer contour
+%   xi,yi        - Closed inner contour
 
-    % ============================================================
-    % ANGULAR DOMAIN
-    % ============================================================
+    %--------------------------------------------------------------
+    % Check geometry
+    %--------------------------------------------------------------
+    if thickness >= outerRadius
+        error('Thickness must be smaller than the outer radius.');
+    end
+
+    %--------------------------------------------------------------
+    % Angular samples
+    %--------------------------------------------------------------
     theta = linspace(0,2*pi,N);
 
-    % ============================================================
-    % GAP
-    % ============================================================
-    gapCenter = 0;
+    %--------------------------------------------------------------
+    % Normalized Gielis radius
+    %--------------------------------------------------------------
+    r = gielisRadius(theta,m,n1,n2,n3);
 
-    gapStart = gapCenter - gapAngle/2;
-    gapEnd   = gapCenter + gapAngle/2;
+    r = r ./ max(r);
 
-    mask = ~(theta > gapStart & theta < gapEnd);
-
-    theta = theta(mask);
-
-    % ============================================================
-    % OUTER SHAPE
-    % ============================================================
-    rOuter = gielisRadius( ...
-        theta,m,n1,n2,n3);
-
-    rOuter = rOuter ./ max(rOuter);
-
-    rOuter = rOuter * outerRadius;
+    %--------------------------------------------------------------
+    % Outer contour
+    %--------------------------------------------------------------
+    rOuter = outerRadius * r;
 
     xo = rOuter .* cos(theta);
     yo = rOuter .* sin(theta);
 
-    % ============================================================
-    % INNER SHAPE
-    % ============================================================
+    %--------------------------------------------------------------
+    % Inner contour
+    %--------------------------------------------------------------
     innerRadius = outerRadius - thickness;
 
-    rInner = gielisRadius( ...
-        theta,m,n1,n2,n3);
-
-    rInner = rInner ./ max(rInner);
-
-    rInner = rInner * innerRadius;
+    rInner = innerRadius * r;
 
     xi = rInner .* cos(theta);
     yi = rInner .* sin(theta);
 
-    % ============================================================
-    % CLOSE OUTER CURVE
-    % ============================================================
+    %--------------------------------------------------------------
+    % Close polygons
+    %--------------------------------------------------------------
     xo(end+1) = xo(1);
     yo(end+1) = yo(1);
 
-    % ============================================================
-    % CLOSE INNER CURVE
-    % ============================================================
     xi(end+1) = xi(1);
     yi(end+1) = yi(1);
+
 end
