@@ -1,0 +1,1153 @@
+function MetamaterialCAD_v2()
+
+    % ============================================================
+    % ADD PROJECT DIRECTORIES
+    % ============================================================
+    addpath('../geometry');
+    addpath('../cst');
+    addpath('../analytical');
+
+    % ============================================================
+    % MAIN WINDOW
+    % ============================================================
+    fig = uifigure( ...
+        'Name','Metamaterial CAD with Real-Time EM Estimator', ...
+        'Position',[100 100 1450 850]);
+
+    % ============================================================
+    % AXES
+    % ============================================================
+    ax = uiaxes(fig, ...
+        'Position',[470 120 940 700]);
+
+    axis(ax,'equal');
+    grid(ax,'on');
+    hold(ax,'on');
+
+    title(ax,'Metamaterial Preview');
+
+
+    % ============================================================
+    % GEOMETRY TYPE
+    % ============================================================
+    uilabel(fig, ...
+        'Text','Geometry', ...
+        'FontWeight','bold', ...
+        'Position',[20 800 100 22]);
+
+    geometryDrop = uidropdown(fig, ...
+        'Position',[120 800 220 22], ...
+        'Items',{'Gielis','Spiral','Square SRR'}, ...
+        'Value','Gielis');
+
+
+    % ============================================================
+    % MODE
+    % ============================================================
+    uilabel(fig, ...
+        'Text','Mode', ...
+        'FontWeight','bold', ...
+        'Position',[20 760 100 22]);
+
+    modeDrop = uidropdown(fig, ...
+        'Position',[120 760 220 22], ...
+        'Items',{'SRR','CSRR'}, ...
+        'Value','SRR');
+
+
+    % ============================================================
+    % STRUCTURE TYPE
+    % ============================================================
+    uilabel(fig, ...
+        'Text','Structure', ...
+        'FontWeight','bold', ...
+        'Position',[20 720 100 22]);
+
+    structureDrop = uidropdown(fig, ...
+        'Position',[120 720 220 22], ...
+        'Items',{'Single','Array'}, ...
+        'Value','Single');
+
+
+    % ============================================================
+    % SHARED PARAMETERS
+    % ============================================================
+    sharedPanel = uipanel(fig, ...
+        'Title','Shared Parameters', ...
+        'Position',[20 500 420 190]);
+
+    function spinner = createSpinner(parent,label,value,limits,step,ypos,isInteger)
+
+        if nargin<7
+            isInteger=false;
+        end
+        
+        uilabel(parent,...
+            'Text',label,...
+            'Position',[10 ypos 130 22]);
+        
+        spinner = uispinner(parent,...
+            'Position',[170 ypos 90 22],...
+            'Limits',limits,...
+            'Value',value,...
+            'Step',step);
+        
+        if isInteger
+            spinner.RoundFractionalValues='on';
+        end
+        
+        spinner.ValueChangedFcn=@(~,~)updatePlot();
+        
+        end
+        
+
+
+
+    ringsSlider = createSlider( ...
+        sharedPanel, ...
+        'Rings', ...
+        2, ...
+        [1 10], ...
+        130, ...
+        true);
+
+    thicknessSlider = createSlider( ...
+        sharedPanel, ...
+        'Metal Width', ...
+        0.15, ...
+        [0.01 2], ...
+        90);
+
+    gapSlider = createSlider( ...
+        sharedPanel, ...
+        'Gap (deg)', ...
+        20, ...
+        [1 180], ...
+        50);
+
+    spacingSlider = createSlider( ...
+        sharedPanel, ...
+        'Ring Spacing', ...
+        0.2, ...
+        [0.01 5], ...
+        10);
+
+
+    % ============================================================
+    % GIELIS PANEL
+    % ============================================================
+    gielisPanel = uipanel(fig, ...
+        'Title','Gielis Parameters', ...
+        'Position',[20 230 420 250]);
+
+    mSlider = createSlider( ...
+        gielisPanel, ...
+        'm', ...
+        6, ...
+        [1 20], ...
+        180, ...
+        true);
+
+    n1Slider = createSlider( ...
+        gielisPanel, ...
+        'n1', ...
+        1, ...
+        [0.1 20], ...
+        140);
+
+    n2Slider = createSlider( ...
+        gielisPanel, ...
+        'n2', ...
+        1, ...
+        [0.1 20], ...
+        100);
+
+    n3Slider = createSlider( ...
+        gielisPanel, ...
+        'n3', ...
+        1, ...
+        [0.1 20], ...
+        60);
+
+    aSlider = createSlider( ...
+        gielisPanel, ...
+        'Radius (mm)', ...
+        5, ...
+        [1 20], ...
+        20);
+
+
+    % ============================================================
+    % SPIRAL PANEL
+    % ============================================================
+    spiralPanel = uipanel(fig, ...
+        'Title','Spiral Parameters', ...
+        'Position',[20 230 420 250], ...
+        'Visible','off');
+
+    growthSlider = createSlider( ...
+        spiralPanel, ...
+        'Growth', ...
+        0.25, ...
+        [0.01 2], ...
+        180);
+
+    turnsSlider = createSlider( ...
+        spiralPanel, ...
+        'Turns', ...
+        4, ...
+        [1 15], ...
+        120, ...
+        true);
+
+    offsetSlider = createSlider( ...
+        spiralPanel, ...
+        'Offset', ...
+        0.3, ...
+        [0.05 5], ...
+        60);
+
+
+    % ============================================================
+    % SQUARE / RECTANGULAR SRR PANEL
+    % ============================================================
+    ssrrPanel = uipanel(fig, ...
+        'Title','Square / Rectangular SRR Parameters', ...
+        'Position',[20 230 420 250], ...
+        'Visible','off');
+
+    % ------------------------------------------------------------
+    % Width W
+    % ------------------------------------------------------------
+    WSlider = createSlider( ...
+        ssrrPanel, ...
+        'Width W (mm)', ...
+        10, ...
+        [1 50], ...
+        180);
+
+    % ------------------------------------------------------------
+    % Length L
+    % ------------------------------------------------------------
+    LSlider = createSlider( ...
+        ssrrPanel, ...
+        'Length L (mm)', ...
+        8, ...
+        [1 50], ...
+        140);
+
+    % ------------------------------------------------------------
+    % Physical Split Gap
+    % ------------------------------------------------------------
+    gapSSRRSlider = createSlider( ...
+        ssrrPanel, ...
+        'Split Gap (mm)', ...
+        0.5, ...
+        [0.05 5], ...
+        100);
+
+    % ------------------------------------------------------------
+    % Independent Split Position for Each Ring
+    % ------------------------------------------------------------
+    uilabel(ssrrPanel, ...
+        'Text','Split Position per Ring', ...
+        'FontWeight','bold', ...
+        'Position',[10 65 175 22]);
+
+    splitTable = uitable(ssrrPanel, ...
+        'Position',[190 10 210 80], ...
+        'ColumnName',{'Ring','Position'}, ...
+        'ColumnEditable',[false true], ...
+        'ColumnFormat',{ ...
+            'numeric', ...
+            {'Right','Top','Left','Bottom'}}, ...
+        'ColumnWidth',{60 120}, ...
+        'Data',{ ...
+            1,'Right'; ...
+            2,'Left'});
+
+
+    % ============================================================
+    % ARRAY PANEL
+    % ============================================================
+    arrayPanel = uipanel(fig, ...
+        'Title','Array Parameters', ...
+        'Position',[20 90 420 120], ...
+        'Visible','off');
+
+    NxSlider = createSlider( ...
+        arrayPanel, ...
+        'Nx', ...
+        3, ...
+        [1 20], ...
+        70, ...
+        true);
+
+    NySlider = createSlider( ...
+        arrayPanel, ...
+        'Ny', ...
+        3, ...
+        [1 20], ...
+        35, ...
+        true);
+
+    dxSlider = createSlider( ...
+        arrayPanel, ...
+        'dx (mm)', ...
+        15, ...
+        [1 100], ...
+        0);
+
+    dySlider = createSlider( ...
+        arrayPanel, ...
+        'dy (mm)', ...
+        15, ...
+        [1 100], ...
+        -35);
+
+
+    % ============================================================
+    % SUBSTRATE PANEL
+    % ============================================================
+    substratePanel = uipanel(fig, ...
+        'Title','Substrate', ...
+        'Position',[20 10 420 60]);
+
+    subSizeSlider = createSlider( ...
+        substratePanel, ...
+        'Size (mm)', ...
+        50, ...
+        [5 200], ...
+        0);
+
+
+    % ============================================================
+    % ANALYTICAL REAL-TIME HUD
+    % ============================================================
+    hudPanel = uipanel(fig, ...
+        'Title','Analytical First-Guess Engine (PEEC & Babinet Duality)', ...
+        'Position',[470 10 750 95]);
+
+    f0Label = uilabel(hudPanel, ...
+        'Text','Estimated Resonance (f0): -- GHz', ...
+        'FontWeight','bold', ...
+        'FontSize',13, ...
+        'Position',[15 45 400 25]);
+
+    lLabel = uilabel(hudPanel, ...
+        'Text','Effective Inductance (L): -- nH', ...
+        'Position',[15 15 300 22]);
+
+    cLabel = uilabel(hudPanel, ...
+        'Text','Effective Capacitance (C): -- pF', ...
+        'Position',[350 15 300 22]);
+
+
+    % ============================================================
+    % EXPORT BUTTON
+    % ============================================================
+    uibutton(fig, ...
+        'Text','Export to CST', ...
+        'Position',[1240 10 160 35], ...
+        'ButtonPushedFcn', ...
+        @(src,event) exportCurrentDesign());
+
+
+    % ============================================================
+    % CALLBACKS
+    % ============================================================
+    geometryDrop.ValueChangedFcn = ...
+        @(~,~) toggleGeometry();
+
+    structureDrop.ValueChangedFcn = ...
+        @(~,~) toggleArray();
+
+    modeDrop.ValueChangedFcn = ...
+        @(~,~) updatePlot();
+
+    splitTable.CellEditCallback = ...
+        @(~,~) updatePlot();
+
+
+    % ============================================================
+    % INITIALIZE SPLIT TABLE
+    % ============================================================
+    updateSplitTable();
+
+
+    % ============================================================
+    % INITIAL RENDER
+    % ============================================================
+    updatePlot();
+
+
+    % ============================================================
+    % TOGGLE GEOMETRY
+    % ============================================================
+    function toggleGeometry()
+
+        gielisPanel.Visible = 'off';
+        spiralPanel.Visible = 'off';
+        ssrrPanel.Visible = 'off';
+
+        switch geometryDrop.Value
+
+            case 'Gielis'
+
+                gielisPanel.Visible = 'on';
+
+            case 'Spiral'
+
+                spiralPanel.Visible = 'on';
+
+            case 'Square SRR'
+
+                ssrrPanel.Visible = 'on';
+
+                % Ensure table agrees with current ring count
+                updateSplitTable();
+        end
+
+        updatePlot();
+    end
+
+
+    % ============================================================
+    % TOGGLE ARRAY
+    % ============================================================
+    function toggleArray()
+
+        if strcmp(structureDrop.Value,'Array')
+
+            arrayPanel.Visible = 'on';
+
+        else
+
+            arrayPanel.Visible = 'off';
+        end
+
+        updatePlot();
+    end
+
+
+    % ============================================================
+    % UPDATE SSRR SPLIT TABLE
+    %
+    % The table always contains exactly one row for every ring.
+    %
+    % Existing positions are preserved.
+    %
+    % New rings receive alternating:
+    %
+    % Ring 1 -> Right
+    % Ring 2 -> Left
+    % Ring 3 -> Right
+    % Ring 4 -> Left
+    % ...
+    % ============================================================
+    function updateSplitTable()
+
+        N = round(ringsSlider.Value);
+
+        oldData = splitTable.Data;
+
+        newData = cell(N,2);
+
+        for k = 1:N
+
+            newData{k,1} = k;
+
+            % ----------------------------------------------------
+            % Preserve existing selection
+            % ----------------------------------------------------
+            if ~isempty(oldData) && ...
+               k <= size(oldData,1) && ...
+               ~isempty(oldData{k,2})
+
+                newData{k,2} = oldData{k,2};
+
+            else
+
+                % ------------------------------------------------
+                % Default alternating split configuration
+                % ------------------------------------------------
+                if mod(k,2) == 1
+
+                    newData{k,2} = 'Right';
+
+                else
+
+                    newData{k,2} = 'Left';
+                end
+            end
+        end
+
+        splitTable.Data = newData;
+    end
+
+
+    % ============================================================
+    % COLLECT PARAMETERS
+    % ============================================================
+    function params = collectParams()
+
+        % ========================================================
+        % GEOMETRY TYPE
+        % ========================================================
+        switch geometryDrop.Value
+
+            case 'Gielis'
+
+                params.type = 'gielis';
+
+            case 'Spiral'
+
+                params.type = 'spiral';
+
+            case 'Square SRR'
+
+                params.type = 'ssrr';
+        end
+
+
+        % ========================================================
+        % GENERAL PARAMETERS
+        % ========================================================
+        params.mode = modeDrop.Value;
+
+        params.numRings = ...
+            round(ringsSlider.Value);
+
+        params.thickness = ...
+            thicknessSlider.Value;
+
+        params.spacing = ...
+            spacingSlider.Value;
+
+        params.res = 1500;
+
+
+        % ========================================================
+        % GIELIS / SPIRAL ANGULAR GAP
+        % ========================================================
+        params.gap = ...
+            deg2rad(gapSlider.Value);
+
+
+        % ========================================================
+        % GIELIS PARAMETERS
+        % ========================================================
+        params.m = ...
+            round(mSlider.Value);
+
+        params.n1 = ...
+            n1Slider.Value;
+
+        params.n2 = ...
+            n2Slider.Value;
+
+        params.n3 = ...
+            n3Slider.Value;
+
+        params.a = ...
+            aSlider.Value;
+
+
+        % ========================================================
+        % SPIRAL PARAMETERS
+        % ========================================================
+        params.b = ...
+            growthSlider.Value;
+
+        params.turns = ...
+            round(turnsSlider.Value);
+
+        params.offset = ...
+            offsetSlider.Value;
+
+
+        % ========================================================
+        % SSRR PARAMETERS
+        % ========================================================
+        params.W = ...
+            WSlider.Value;
+
+        params.L = ...
+            LSlider.Value;
+
+        params.gapSSRR = ...
+            gapSSRRSlider.Value;
+
+
+        % ========================================================
+        % INDEPENDENT SPLIT POSITION FOR EACH SSRR RING
+        % ========================================================
+        N = params.numRings;
+
+        tableData = splitTable.Data;
+
+        % Make absolutely sure table contains N rings
+        if size(tableData,1) ~= N
+
+            updateSplitTable();
+
+            tableData = splitTable.Data;
+        end
+
+        params.gapPositions = ...
+            cell(1,N);
+
+        for k = 1:N
+
+            params.gapPositions{k} = ...
+                lower(char(tableData{k,2}));
+        end
+
+
+        % ========================================================
+        % ARRAY PARAMETERS
+        % ========================================================
+        params.Nx = ...
+            round(NxSlider.Value);
+
+        params.Ny = ...
+            round(NySlider.Value);
+
+        params.dx = ...
+            dxSlider.Value;
+
+        params.dy = ...
+            dySlider.Value;
+
+
+        % ========================================================
+        % SUBSTRATE PARAMETERS
+        % ========================================================
+        params.substrateSize = ...
+            subSizeSlider.Value;
+
+        params.substrateThickness = ...
+            1.6;
+
+        params.substrateMaterial = ...
+            'FR4';
+    end
+
+
+    % ============================================================
+    % UPDATE PLOT
+    % ============================================================
+    function updatePlot()
+
+        cla(ax);
+
+        params = collectParams();
+
+
+        % ========================================================
+        % GENERATE UNIT CELL
+        % ========================================================
+        try
+
+            geom = ...
+                buildMetamaterial(params);
+
+        catch ME
+
+            f0Label.Text = ...
+                'Estimated Resonance (f0): Geometry Error';
+
+            lLabel.Text = ...
+                'Effective Inductance (L): -- nH';
+
+            cLabel.Text = ...
+                'Effective Capacitance (C): -- pF';
+
+            title(ax, ...
+                ['Geometry Error: ' ME.message]);
+
+            return;
+        end
+
+
+        % ========================================================
+        % BUILD ARRAY IF REQUESTED
+        % ========================================================
+        if strcmp(structureDrop.Value,'Array')
+
+            geom = buildArray( ...
+                geom, ...
+                params.Nx, ...
+                params.Ny, ...
+                params.dx, ...
+                params.dy, ...
+                0, ...
+                0, ...
+                true);
+        end
+
+
+        hold(ax,'on');
+
+
+        % ========================================================
+        % SUBSTRATE
+        % ========================================================
+        substrateL = ...
+            params.substrateSize;
+
+        rectangle(ax, ...
+            'Position',[ ...
+                -substrateL/2, ...
+                -substrateL/2, ...
+                 substrateL, ...
+                 substrateL], ...
+            'FaceColor',[0.85 0.85 0.85], ...
+            'EdgeColor','k');
+
+
+        % ========================================================
+        % CSRR GROUND
+        % ========================================================
+        if strcmp(params.mode,'CSRR')
+
+            rectangle(ax, ...
+                'Position',[ ...
+                    -substrateL/2, ...
+                    -substrateL/2, ...
+                     substrateL, ...
+                     substrateL], ...
+                'FaceColor',[0.45 0.45 0.45], ...
+                'EdgeColor','none');
+        end
+
+
+        % ========================================================
+        % DRAW METAMATERIAL GEOMETRY
+        % ========================================================
+        for i = 1:length(geom)
+
+            xo = geom{i}.outerX;
+            yo = geom{i}.outerY;
+
+            xi = geom{i}.innerX;
+            yi = geom{i}.innerY;
+
+
+            % ====================================================
+            % SINGLE CLOSED CONDUCTOR POLYGON
+            %
+            % Used by SSRR
+            % ====================================================
+            if isempty(xi) || isempty(yi)
+
+                X = xo(:).';
+                Y = yo(:).';
+
+
+            % ====================================================
+            % OUTER + INNER CONTOUR
+            %
+            % Used by Gielis / Spiral
+            % ====================================================
+            else
+
+                X = [ ...
+                    xo(:).' ...
+                    fliplr(xi(:).')];
+
+                Y = [ ...
+                    yo(:).' ...
+                    fliplr(yi(:).')];
+            end
+
+
+            % ====================================================
+            % SRR / CSRR PREVIEW
+            % ====================================================
+            if strcmp(params.mode,'SRR')
+
+                patch(ax, ...
+                    X, ...
+                    Y, ...
+                    [0.8 0 0], ...
+                    'FaceAlpha',0.5, ...
+                    'EdgeColor','r');
+
+            else
+
+                patch(ax, ...
+                    X, ...
+                    Y, ...
+                    'w', ...
+                    'EdgeColor','none');
+            end
+        end
+
+
+        % ========================================================
+        % MODULAR EM ESTIMATION
+        % ========================================================
+        if ~isempty(geom)
+
+            try
+
+                ring = geom{1};
+
+                ox = ring.outerX(:);
+                oy = ring.outerY(:);
+
+                ix = ring.innerX(:);
+                iy = ring.innerY(:);
+
+
+                % =================================================
+                % APPROXIMATE CENTERLINE
+                % =================================================
+                if ~isempty(ix) && ...
+                   ~isempty(iy)
+
+                    % ---------------------------------------------
+                    % Gielis / Spiral
+                    % ---------------------------------------------
+                    nPts = min( ...
+                        length(ox), ...
+                        length(ix));
+
+                    xMid = ...
+                        (ox(1:nPts) + ...
+                         ix(1:nPts))/2;
+
+                    yMid = ...
+                        (oy(1:nPts) + ...
+                         iy(1:nPts))/2;
+
+                else
+
+                    % ---------------------------------------------
+                    % SSRR
+                    %
+                    % Current SSRR representation is a single
+                    % closed conductive polygon.
+                    % ---------------------------------------------
+                    xMid = ox;
+                    yMid = oy;
+                end
+
+
+                % =================================================
+                % REMOVE CONSECUTIVE DUPLICATE POINTS
+                % =================================================
+                if length(xMid) > 1
+
+                    d = sqrt( ...
+                        diff(xMid).^2 + ...
+                        diff(yMid).^2);
+
+                    keep = ...
+                        [true; d > 1e-12];
+
+                    xMid = ...
+                        xMid(keep);
+
+                    yMid = ...
+                        yMid(keep);
+                end
+
+
+                % =================================================
+                % CONVERT mm -> m
+                % =================================================
+                V_skeleton = ...
+                    [xMid,yMid] * 1e-3;
+
+
+                % =================================================
+                % METAL TRACE WIDTH
+                % =================================================
+                w_m = ...
+                    params.thickness * 1e-3;
+
+
+                % =================================================
+                % COPPER CLADDING THICKNESS
+                % =================================================
+                t_m = 35e-6;
+
+
+                % =================================================
+                % GAP DIMENSION
+                % =================================================
+                if strcmp(params.type,'ssrr')
+
+                    % Physical SSRR gap
+                    gap_m = ...
+                        params.gapSSRR * 1e-3;
+
+                else
+
+                    % Gielis / current spiral angular gap
+                    rMean_m = ...
+                        mean( ...
+                            sqrt( ...
+                                xMid.^2 + ...
+                                yMid.^2)) * 1e-3;
+
+                    gap_m = ...
+                        rMean_m * params.gap;
+                end
+
+
+                % =================================================
+                % SUBSTRATE PERMITTIVITY
+                % =================================================
+                substrate_er = 4.4;
+
+
+                % =================================================
+                % EXECUTE ANALYTICAL SOLVER
+                % =================================================
+                [f_est,L_eff,C_eff] = ...
+                    universal_rapid_guess( ...
+                        V_skeleton, ...
+                        w_m, ...
+                        t_m, ...
+                        gap_m, ...
+                        params.mode, ...
+                        substrate_er);
+
+
+                % =================================================
+                % UPDATE HUD
+                % =================================================
+                f0Label.Text = sprintf( ...
+                    'Estimated Resonance (f0): %.3f GHz', ...
+                    f_est/1e9);
+
+                lLabel.Text = sprintf( ...
+                    'Effective Inductance (L): %.3f nH', ...
+                    L_eff*1e9);
+
+                cLabel.Text = sprintf( ...
+                    'Effective Capacitance (C): %.3f pF', ...
+                    C_eff*1e12);
+
+
+            catch ME
+
+                f0Label.Text = ...
+                    'Estimated Resonance (f0): Analytical Error';
+
+                lLabel.Text = ...
+                    'Effective Inductance (L): -- nH';
+
+                cLabel.Text = ...
+                    'Effective Capacitance (C): -- pF';
+
+                fprintf( ...
+                    'Analytical estimator error: %s\n', ...
+                    ME.message);
+            end
+        end
+
+
+        % ========================================================
+        % AXES SETTINGS
+        % ========================================================
+        axis(ax,'equal');
+
+        xlabel(ax,'x (mm)');
+
+        ylabel(ax,'y (mm)');
+
+        grid(ax,'on');
+
+        title(ax,'Metamaterial Preview');
+    end
+
+
+    % ============================================================
+    % EXPORT CURRENT DESIGN
+    % ============================================================
+    function exportCurrentDesign()
+
+        params = collectParams();
+
+
+        % ========================================================
+        % BUILD GEOMETRY
+        % ========================================================
+        try
+
+            geom = ...
+                buildMetamaterial(params);
+
+        catch ME
+
+            uialert( ...
+                fig, ...
+                ME.message, ...
+                'Geometry Error');
+
+            return;
+        end
+
+
+        % ========================================================
+        % BUILD ARRAY
+        % ========================================================
+        if strcmp(structureDrop.Value,'Array')
+
+            geom = buildArray( ...
+                geom, ...
+                params.Nx, ...
+                params.Ny, ...
+                params.dx, ...
+                params.dy, ...
+                0, ...
+                0, ...
+                true);
+        end
+
+
+        % ========================================================
+        % EXPORT TO CST
+        % ========================================================
+        try
+
+            exportToCST_COM( ...
+                geom, ...
+                params);
+
+            uialert( ...
+                fig, ...
+                'CST model generated successfully.', ...
+                'Export');
+
+        catch ME
+
+            uialert( ...
+                fig, ...
+                ME.message, ...
+                'CST Export Error');
+        end
+    end
+
+
+    % ============================================================
+    % SLIDER FACTORY
+    % ============================================================
+    function slider = createSlider( ...
+        parent, ...
+        label, ...
+        value, ...
+        limits, ...
+        ypos, ...
+        isInteger)
+
+        if nargin < 6
+
+            isInteger = false;
+        end
+
+
+        % ========================================================
+        % LABEL
+        % ========================================================
+        uilabel(parent, ...
+            'Text',label, ...
+            'Position',[10 ypos+5 105 22]);
+
+
+        % ========================================================
+        % SLIDER
+        % ========================================================
+        slider = uislider(parent, ...
+            'Position',[120 ypos+15 240 3], ...
+            'Limits',limits, ...
+            'Value',value);
+
+
+        % ========================================================
+        % INTEGER SLIDER
+        % ========================================================
+        if isInteger
+
+            slider.Value = ...
+                round(value);
+
+            valueLabel = uilabel(parent, ...
+                'Text', ...
+                num2str(round(value),'%d'), ...
+                'Position',[370 ypos+5 50 22]);
+
+            slider.ValueChangedFcn = ...
+                @(src,event) ...
+                updateIntegerSlider( ...
+                    src, ...
+                    valueLabel);
+
+
+        % ========================================================
+        % FLOAT SLIDER
+        % ========================================================
+        else
+
+            valueLabel = uilabel(parent, ...
+                'Text', ...
+                num2str(value,'%.2f'), ...
+                'Position',[370 ypos+5 50 22]);
+
+            slider.ValueChangedFcn = ...
+                @(src,event) ...
+                updateFloatSlider( ...
+                    src, ...
+                    valueLabel);
+        end
+    end
+
+
+    % ============================================================
+    % INTEGER SLIDER CALLBACK
+    % ============================================================
+    function updateIntegerSlider(src,label)
+
+        src.Value = ...
+            round(src.Value);
+
+        set( ...
+            label, ...
+            'Text', ...
+            num2str(src.Value,'%d'));
+
+
+        % ========================================================
+        % SPECIAL CASE:
+        % NUMBER OF RINGS CHANGED
+        %
+        % Synchronize SSRR split-position table.
+        % ========================================================
+        if src == ringsSlider
+
+            updateSplitTable();
+        end
+
+
+        updatePlot();
+    end
+
+
+    % ============================================================
+    % FLOAT SLIDER CALLBACK
+    % ============================================================
+    function updateFloatSlider(src,label)
+
+        set( ...
+            label, ...
+            'Text', ...
+            num2str(src.Value,'%.2f'));
+
+        updatePlot();
+    end
+
+end

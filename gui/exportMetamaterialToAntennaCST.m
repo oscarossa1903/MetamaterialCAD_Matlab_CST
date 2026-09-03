@@ -1,0 +1,168 @@
+function exportMetamaterialToAntennaCST(geom,params)
+
+% exportMetamaterialToAntennaCST
+
+%
+
+
+
+    if ~isfield(params,'antennaCSTFile') || isempty(params.antennaCSTFile)
+        error('No antenna CST project was selected.');
+    end
+
+    if ~isfile(params.antennaCSTFile)
+        error('The selected antenna CST project does not exist.');
+    end
+
+    if ~isfield(params,'antennaZ')
+        params.antennaZ = 0;
+    end
+
+    % ============================================================
+    % OPEN CST AND EXISTING ANTENNA PROJECT
+    % ============================================================
+    cst = actxserver('CSTStudio.Application');
+
+    mws = [];
+
+    try
+        mws = invoke(cst,'OpenFile',params.antennaCSTFile);
+    catch
+        % Some CST COM versions open the file without returning the
+        % project object. In that case, recover the active 3D project.
+        invoke(cst,'OpenFile',params.antennaCSTFile);
+    end
+
+    if isempty(mws)
+        pause(0.5);
+
+        try
+            mws = get(cst,'Active3D');
+        catch
+            try
+                mws = invoke(cst,'Active3D');
+            catch
+                error(['CST opened the application but MATLAB could not ' ...
+                       'obtain the active 3D antenna project.']);
+            end
+        end
+    end
+
+
+    % ============================================================
+    % CONDUCTOR MATERIAL
+    %
+    % If the material already exists in the antenna project, CST may
+    % reject a duplicate creation. That is harmless, so continue.
+    % ============================================================
+    try
+        conductorCode = buildCSTMaterial(params.conductorMaterial);
+
+        invoke(mws, ...
+            'AddToHistory', ...
+            ['Create/Ensure ',params.conductorMaterial], ...
+            conductorCode);
+    catch
+        % Continue: the selected material may already exist.
+    end
+
+
+    % ============================================================
+    % INSERT METAMATERIAL CONDUCTOR
+    % ============================================================
+    z = params.antennaZ;
+
+    for k = 1:length(geom)
+
+        g = geom{k};
+
+        outerCurve = sprintf('MM_Outer_%d',k);
+        innerCurve = sprintf('MM_Inner_%d',k);
+
+        outerSheet = sprintf('MM_OuterSheet_%d',k);
+        innerSheet = sprintf('MM_InnerSheet_%d',k);
+
+        % --------------------------------------------------------
+        % OUTER CURVE
+        % --------------------------------------------------------
+        outerCurveCmd = buildCSTCurve( ...
+            g.outerX, ...
+            g.outerY, ...
+            z, ...
+            outerCurve);
+
+        invoke(mws, ...
+            'AddToHistory', ...
+            ['Antenna MM Outer Curve ',num2str(k)], ...
+            outerCurveCmd);
+
+
+        % --------------------------------------------------------
+        % OUTER CONDUCTOR SHEET
+        % --------------------------------------------------------
+        outerSheetCmd = buildCSTSheet( ...
+            outerCurve, ...
+            outerSheet, ...
+            params.conductorMaterial);
+
+        invoke(mws, ...
+            'AddToHistory', ...
+            ['Antenna MM Outer Sheet ',num2str(k)], ...
+            outerSheetCmd);
+
+
+        % --------------------------------------------------------
+        % INNER CUTOUT
+        %
+        % Some geometries (for example current SSRR representation)
+        % may have no inner contour.
+        % --------------------------------------------------------
+        if ~isempty(g.innerX) && ~isempty(g.innerY)
+
+            innerCurveCmd = buildCSTCurve( ...
+                g.innerX, ...
+                g.innerY, ...
+                z, ...
+                innerCurve);
+
+            invoke(mws, ...
+                'AddToHistory', ...
+                ['Antenna MM Inner Curve ',num2str(k)], ...
+                innerCurveCmd);
+
+            innerSheetCmd = buildCSTSheet( ...
+                innerCurve, ...
+                innerSheet, ...
+                'Vacuum');
+
+            invoke(mws, ...
+                'AddToHistory', ...
+                ['Antenna MM Inner Sheet ',num2str(k)], ...
+                innerSheetCmd);
+
+            subtractCmd = buildCSTSubtract( ...
+                outerSheet, ...
+                innerSheet);
+
+            invoke(mws, ...
+                'AddToHistory', ...
+                ['Antenna MM Subtract ',num2str(k)], ...
+                subtractCmd);
+        end
+    end
+
+
+    % ============================================================
+    % FINAL VIEW
+    % ============================================================
+    try
+        invoke(mws, ...
+            'AddToHistory', ...
+            'Fit Antenna + Metamaterial', ...
+            'Plot.ZoomToStructure');
+    catch
+        % Non-critical.
+    end
+
+    disp('Metamaterial conductor inserted into antenna CST project.');
+end
