@@ -26,7 +26,7 @@ function MetamaterialCAD()
         'Position',[20 800 100 22]);
     geometryDrop = uidropdown(fig,...
         'Position',[120 800 220 22],...
-        'Items',{'Gielis','Spiral','Square SRR'},...
+        'Items',{'Gielis','Square SRR'},...
         'Value','Gielis');
     % ============================================================
     % MODE
@@ -110,29 +110,6 @@ function MetamaterialCAD()
         5,[1 20],...
         20);
     % ============================================================
-    % SPIRAL PANEL
-    % ============================================================
-    spiralPanel = uipanel(fig,...
-        'Title','Spiral Parameters',...
-        'Position',[20 230 420 250],...
-        'Visible','off');
-    growthSlider = createSlider(...
-        spiralPanel,...
-        'Growth',...
-        0.25,[0.01 2],...
-        180);
-    turnsSlider = createSlider(...
-        spiralPanel,...
-        'Turns',...
-        4,[1 15],...
-        120,...
-        true); % Enforced strict integer turns for realistic modeling
-    offsetSlider = createSlider(...
-        spiralPanel,...
-        'Offset',...
-        0.3,[0.05 5],...
-        60);
-    % ============================================================
     % SSRR PANEL
     % ============================================================
     ssrrPanel = uipanel(fig,...
@@ -212,13 +189,10 @@ function MetamaterialCAD()
     % ============================================================
     function toggleGeometry()
         gielisPanel.Visible = 'off';
-        spiralPanel.Visible = 'off';
         ssrrPanel.Visible = 'off';
         switch geometryDrop.Value
             case 'Gielis'
                 gielisPanel.Visible = 'on';
-            case 'Spiral'
-                spiralPanel.Visible = 'on';
             case 'Square SRR'
                 ssrrPanel.Visible = 'on';
         end
@@ -242,8 +216,6 @@ function MetamaterialCAD()
         switch geometryDrop.Value
             case 'Gielis'
                 params.type = 'gielis';
-            case 'Spiral'
-                params.type = 'spiral';
             case 'Square SRR'
                 params.type = 'ssrr';
         end
@@ -259,11 +231,7 @@ function MetamaterialCAD()
         params.n2 = n2Slider.Value;
         params.n3 = n3Slider.Value;
         params.a = aSlider.Value;
-        
-        params.b = growthSlider.Value;
-        params.turns = turnsSlider.Value;
-        params.offset = offsetSlider.Value;
-        
+
         params.side = sideSlider.Value;
         params.corner = cornerSlider.Value;
         

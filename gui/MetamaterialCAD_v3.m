@@ -116,7 +116,7 @@ function MetamaterialCAD_v2_AntennaGeneral()
 
     geometryDrop = uidropdown(Meta_type_Panel, ...
         'Position',[140 105 225 22], ...
-        'Items',{'Gielis','Spiral','Square SRR'}, ...
+        'Items',{'Gielis','Square SRR'}, ...
         'Value','Gielis');
 
     uilabel(Meta_type_Panel, ...
@@ -145,7 +145,7 @@ function MetamaterialCAD_v2_AntennaGeneral()
     % ============================================================
     sharedPanel = uipanel(designTab, ...
         'Title','Shared Parameters', ...
-        'Position',[10 385 395 190]);
+        'Position',[10 375 395 200]);
 
     ringsSpinner = createSpinner( ...
         sharedPanel, ...
@@ -153,7 +153,7 @@ function MetamaterialCAD_v2_AntennaGeneral()
         2, ...
         [1 10], ...
         1, ...
-        135, ...
+        148, ...
         true);
 
     thicknessSpinner = createSpinner( ...
@@ -162,7 +162,7 @@ function MetamaterialCAD_v2_AntennaGeneral()
         0.15, ...
         [0.01 2], ...
         0.01, ...
-        90);
+        110);
 
     spacingSpinner = createSpinner( ...
         sharedPanel, ...
@@ -170,7 +170,15 @@ function MetamaterialCAD_v2_AntennaGeneral()
         0.20, ...
         [0.01 5], ...
         0.01, ...
-        35);
+        72);
+
+    splitGapSpinner = createSpinner( ...
+        sharedPanel, ...
+        'Split Gap (mm)', ...
+        0.30, ...
+        [0 5], ...
+        0.01, ...
+        34);
 
 
     % ============================================================
@@ -220,37 +228,6 @@ function MetamaterialCAD_v2_AntennaGeneral()
         [1 20], ...
         0.1, ...
         45);
-
-
-    % ============================================================
-    % DESIGN TAB — SPIRAL PARAMETERS
-    % ============================================================
-    spiralPanel = uipanel(designTab, ...
-        'Title','Spiral Parameters', ...
-        'Position',[10 75 395 290], ...
-        'Visible','off');
-
-    growthSlider = createSlider( ...
-        spiralPanel, ...
-        'Growth', ...
-        0.25, ...
-        [0.01 2], ...
-        200);
-
-    turnsSlider = createSlider( ...
-        spiralPanel, ...
-        'Turns', ...
-        4, ...
-        [1 15], ...
-        130, ...
-        true);
-
-    offsetSlider = createSlider( ...
-        spiralPanel, ...
-        'Offset', ...
-        0.3, ...
-        [0.05 5], ...
-        60);
 
 
     % ============================================================
@@ -630,11 +607,71 @@ function MetamaterialCAD_v2_AntennaGeneral()
         'Position',[350 36 320 22]);
 
     estimatorBadge = uilabel(hudPanel, ...
-        'Text','PEEC + Babinet', ...
+        'Text','EC-SRR (Baena/Bilotti)', ...
         'HorizontalAlignment','center', ...
         'FontWeight','bold', ...
         'BackgroundColor',[0.90 0.94 1.00], ...
         'Position',[700 55 165 30]);
+
+
+    % ============================================================
+    % TWO-STAGE ANALYSIS  (LC model -> S-params -> eps/mu)
+    % ============================================================
+    analysisPanel = uipanel(fig, ...
+        'Title','Two-Stage Analysis', ...
+        'FontWeight','bold', ...
+        'Position',[1380 20 300 385]);
+
+    autoRangeCheck = uicheckbox(analysisPanel, ...
+        'Text','Auto frequency range (centre on f0)', ...
+        'Value',true, ...
+        'Position',[10 335 275 22]);
+
+    fminSpinner = createSpinner(analysisPanel, ...
+        'f min (GHz)', 2, [0.1 100], 0.5, 305);
+    fmaxSpinner = createSpinner(analysisPanel, ...
+        'f max (GHz)', 12, [0.2 200], 0.5, 277);
+    qSpinner = createSpinner(analysisPanel, ...
+        'Resonator Q', 40, [2 500], 5, 249);
+
+    uilabel(analysisPanel, ...
+        'Text','Model', ...
+        'Position',[10 219 60 22]);
+    analysisModelDrop = uidropdown(analysisPanel, ...
+        'Items',{'Both','Slab (eps/mu)','Line-coupled'}, ...
+        'Value','Both', ...
+        'Position',[75 219 205 22]);
+
+    cstS2PPath = '';
+    cstS2PLabel = uilabel(analysisPanel, ...
+        'Text','CST .s2p: (none)', ...
+        'FontSize',10, ...
+        'Position',[10 191 280 20]);
+
+    uibutton(analysisPanel, ...
+        'Text','Load CST .s2p', ...
+        'Position',[10 152 130 30], ...
+        'ButtonPushedFcn',@(~,~) loadCstS2P());
+
+    uibutton(analysisPanel, ...
+        'Text','Clear .s2p', ...
+        'Position',[150 152 130 30], ...
+        'ButtonPushedFcn',@(~,~) clearCstS2P());
+
+    uibutton(analysisPanel, ...
+        'Text','Run Analysis', ...
+        'FontWeight','bold', ...
+        'Position',[10 108 270 36], ...
+        'ButtonPushedFcn',@(~,~) runTwoStageAnalysis());
+
+    analysisResultLabel = uilabel(analysisPanel, ...
+        'Text','Stage-2 results appear here.', ...
+        'WordWrap','on', ...
+        'VerticalAlignment','top', ...
+        'FontSize',10, ...
+        'Position',[10 8 280 92]);
+
+    analysisFig = [];   % lazily created results window
 
 
     % ============================================================
@@ -790,7 +827,6 @@ function MetamaterialCAD_v2_AntennaGeneral()
     function toggleGeometry()
 
         gielisPanel.Visible = 'off';
-        spiralPanel.Visible = 'off';
         ssrrPanel.Visible = 'off';
 
         switch geometryDrop.Value
@@ -798,10 +834,6 @@ function MetamaterialCAD_v2_AntennaGeneral()
             case 'Gielis'
 
                 gielisPanel.Visible = 'on';
-
-            case 'Spiral'
-
-                spiralPanel.Visible = 'on';
 
             case 'Square SRR'
 
@@ -906,10 +938,6 @@ function MetamaterialCAD_v2_AntennaGeneral()
 
                 params.type = 'gielis';
 
-            case 'Spiral'
-
-                params.type = 'spiral';
-
             case 'Square SRR'
 
                 params.type = 'ssrr';
@@ -952,11 +980,6 @@ function MetamaterialCAD_v2_AntennaGeneral()
 
 
         % ========================================================
-        % GIELIS / SPIRAL ANGULAR GAP
-        % ========================================================
-
-
-        % ========================================================
         % GIELIS PARAMETERS
         % ========================================================
         params.m = mSpinner.Value;
@@ -964,17 +987,6 @@ function MetamaterialCAD_v2_AntennaGeneral()
         params.n2 = n2Spinner.Value;
         params.n3 = n3Spinner.Value;
         params.a = aSpinner.Value;
-        % ========================================================
-        % SPIRAL PARAMETERS
-        % ========================================================
-        params.b = ...
-            growthSlider.Value;
-
-        params.turns = ...
-            round(turnsSlider.Value);
-
-        params.offset = ...
-            offsetSlider.Value;
 
 
         % ========================================================
@@ -1037,6 +1049,18 @@ function MetamaterialCAD_v2_AntennaGeneral()
 
         params.substrateMaterial = ...
             dielectricMaterialDrop.Value;
+
+        % ========================================================
+        % SPLIT GAP / STRUCTURE (shared, used by geometry + analytics)
+        % ========================================================
+        params.structure = structureDrop.Value;
+
+        params.splitGap = splitGapSpinner.Value;
+
+        if strcmp(params.type,'ssrr')
+            % SSRR carries its own physical split (gapSSRR)
+            params.splitGap = params.gapSSRR;
+        end
     end
 
 
@@ -1166,7 +1190,7 @@ function MetamaterialCAD_v2_AntennaGeneral()
             % ====================================================
             % OUTER + INNER CONTOUR
             %
-            % Used by Gielis / Spiral
+            % Used by Gielis
             % ====================================================
             else
 
@@ -1204,151 +1228,62 @@ function MetamaterialCAD_v2_AntennaGeneral()
 
 
         % ========================================================
-        % MODULAR EM ESTIMATION
+        % ANALYTICAL FIRST-GUESS  (Stage 1: EC-SRR L, C, f0)
         % ========================================================
         if ~isempty(geom)
 
             try
 
-                ring = geom{1};
+                s1 = srrLcModel(geom, params);
 
-                ox = ring.outerX(:);
-                oy = ring.outerY(:);
+                % -------------------------------------------------
+                % Legacy PEEC/Babinet quick estimator (cross-check)
+                % -------------------------------------------------
+                fQuick = NaN;
+                try
+                    ring = geom{1};
+                    ox = ring.outerX(:);  oy = ring.outerY(:);
+                    ix = ring.innerX(:);  iy = ring.innerY(:);
 
-                ix = ring.innerX(:);
-                iy = ring.innerY(:);
+                    if ~isempty(ix) && ~isempty(iy)
+                        nPts = min(length(ox),length(ix));
+                        xMid = (ox(1:nPts) + ix(1:nPts))/2;
+                        yMid = (oy(1:nPts) + iy(1:nPts))/2;
+                    else
+                        xMid = ox;  yMid = oy;
+                    end
 
+                    V_skeleton = [xMid, yMid] * 1e-3;
 
-                % =================================================
-                % APPROXIMATE CENTERLINE
-                % =================================================
-                if ~isempty(ix) && ...
-                   ~isempty(iy)
-
-                    % ---------------------------------------------
-                    % Gielis / Spiral
-                    % ---------------------------------------------
-                    nPts = min( ...
-                        length(ox), ...
-                        length(ix));
-
-                    xMid = ...
-                        (ox(1:nPts) + ...
-                         ix(1:nPts))/2;
-
-                    yMid = ...
-                        (oy(1:nPts) + ...
-                         iy(1:nPts))/2;
-
-                else
-
-                    % ---------------------------------------------
-                    % SSRR
-                    %
-                    % Current SSRR representation is a single
-                    % closed conductive polygon.
-                    % ---------------------------------------------
-                    xMid = ox;
-                    yMid = oy;
-                end
-
-
-                % =================================================
-                % REMOVE CONSECUTIVE DUPLICATE POINTS
-                % =================================================
-                if length(xMid) > 1
-
-                    d = sqrt( ...
-                        diff(xMid).^2 + ...
-                        diff(yMid).^2);
-
-                    keep = ...
-                        [true; d > 1e-12];
-
-                    xMid = ...
-                        xMid(keep);
-
-                    yMid = ...
-                        yMid(keep);
-                end
-
-
-                % =================================================
-                % CONVERT mm -> m
-                % =================================================
-                V_skeleton = ...
-                    [xMid,yMid] * 1e-3;
-
-
-                % =================================================
-                % METAL TRACE WIDTH
-                % =================================================
-                w_m = ...
-                    params.thickness * 1e-3;
-
-
-                % =================================================
-                % COPPER CLADDING THICKNESS
-                % =================================================
-                t_m = 35e-6;
-
-
-                % =================================================
-                % GAP DIMENSION
-                % =================================================
-                if strcmp(params.type,'ssrr')
-
-                    % Physical SSRR gap
-                    gap_m = ...
-                        params.gapSSRR * 1e-3;
-
-                else
-
-                    % Gielis / current spiral angular gap
-                    rMean_m = ...
-                        mean( ...
-                            sqrt( ...
-                                xMid.^2 + ...
-                                yMid.^2)) * 1e-3;
-
-                    gap_m = ...
-                        rMean_m * params.gap;
-                end
-
-
-                % =================================================
-                % SUBSTRATE PERMITTIVITY
-                % =================================================
-                substrate_er = 4.4;
-
-
-                % =================================================
-                % EXECUTE ANALYTICAL SOLVER
-                % =================================================
-                [f_est,L_eff,C_eff] = ...
-                    universal_rapid_guess( ...
+                    fQuick = universal_rapid_guess( ...
                         V_skeleton, ...
-                        w_m, ...
-                        t_m, ...
-                        gap_m, ...
+                        params.thickness * 1e-3, ...
+                        35e-6, ...
+                        max(params.splitGap,1e-3) * 1e-3, ...
                         params.mode, ...
-                        substrate_er);
+                        s1.er);
+                catch
+                    % quick estimator is optional
+                end
 
-
-                % =================================================
+                % -------------------------------------------------
                 % UPDATE HUD
-                % =================================================
-                f0Label.Text = sprintf( ...
-                    'Estimated Resonance (f0): %.3f GHz', ...
-                    f_est/1e9);
+                % -------------------------------------------------
+                if isfinite(fQuick)
+                    f0Label.Text = sprintf( ...
+                        ['Estimated Resonance (f0): %.3f GHz' ...
+                         '     (PEEC quick: %.2f GHz)'], ...
+                        s1.f0/1e9, fQuick/1e9);
+                else
+                    f0Label.Text = sprintf( ...
+                        'Estimated Resonance (f0): %.3f GHz', s1.f0/1e9);
+                end
 
                 lLabel.Text = sprintf( ...
-                    'Effective Inductance (L): %.3f nH', ...
-                    L_eff*1e9);
+                    'Effective Inductance (L): %.3f nH', s1.L*1e9);
 
                 cLabel.Text = sprintf( ...
-                    'Effective Capacitance (C): %.3f pF', ...
-                    C_eff*1e12);
+                    'Effective Capacitance (C): %.3f pF', s1.C*1e12);
 
 
             catch ME
@@ -1458,6 +1393,98 @@ function MetamaterialCAD_v2_AntennaGeneral()
                 ME.message, ...
                 'CST Export Error');
         end
+    end
+
+
+    % ============================================================
+    % TWO-STAGE ANALYSIS CALLBACKS
+    % ============================================================
+    function loadCstS2P()
+        [fn,fp] = uigetfile({'*.s2p;*.s1p','Touchstone (*.s1p,*.s2p)'}, ...
+            'Select CST-exported S-parameter file');
+        if isequal(fn,0); return; end
+        cstS2PPath = fullfile(fp,fn);
+        cstS2PLabel.Text = ['CST .s2p: ' fn];
+    end
+
+    function clearCstS2P()
+        cstS2PPath = '';
+        cstS2PLabel.Text = 'CST .s2p: (none)';
+    end
+
+    function runTwoStageAnalysis()
+
+        params = collectParams();
+
+        try
+            geom = buildMetamaterial(params);
+        catch ME
+            uialert(fig, ME.message, 'Geometry Error');
+            return;
+        end
+
+        if strcmp(structureDrop.Value,'Array')
+            geom = buildArray(geom, params.Nx, params.Ny, ...
+                params.dx, params.dy, 0, 0, true);
+        end
+
+        switch analysisModelDrop.Value
+            case 'Slab (eps/mu)';  modelSel = 'slab';
+            case 'Line-coupled';   modelSel = 'line';
+            otherwise;             modelSel = 'both';
+        end
+
+        opts = struct( ...
+            'nf',    801, ...
+            'Q',     qSpinner.Value, ...
+            'model', modelSel);
+
+        if ~autoRangeCheck.Value
+            opts.fmin = fminSpinner.Value * 1e9;
+            opts.fmax = fmaxSpinner.Value * 1e9;
+        end
+
+        if ~isempty(cstS2PPath) && isfile(cstS2PPath)
+            opts.s2pFile = cstS2PPath;
+        end
+
+        % results window
+        if isempty(analysisFig) || ~isvalid(analysisFig)
+            analysisFig = uifigure('Name','Two-Stage Analysis', ...
+                'Position',[120 120 900 640]);
+        end
+        clf(analysisFig);
+        axS  = uiaxes(analysisFig, 'Position',[ 60 340 800 260]);
+        axEM = uiaxes(analysisFig, 'Position',[ 60  40 800 260]);
+        opts.axS = axS;
+        opts.axEM = axEM;
+
+        try
+            results = runAnalyticalPipeline(geom, params, opts);
+        catch ME
+            uialert(fig, ME.message, 'Analysis Error');
+            return;
+        end
+
+        s = results.summary;
+        qtyName = 'Re(\mu_{eff})';
+        if strcmpi(results.s1.mode,'CSRR'); qtyName = 'Re(\epsilon_{eff})'; end
+
+        if isnan(s.fnegLow)
+            negTxt = sprintf('%s stays >= 0 in band.', qtyName);
+        else
+            negTxt = sprintf('%s < 0 over %.2f-%.2f GHz.', ...
+                qtyName, s.fnegLow/1e9, s.fnegHigh/1e9);
+        end
+
+        analysisResultLabel.Text = sprintf([ ...
+            'Stage 1: f0 = %.3f GHz,  L = %.2f nH,  C = %.3f pF\n' ...
+            'Shape: %s,  rings: %d,  fill F = %.2f\n%s'], ...
+            results.s1.f0/1e9, results.s1.L*1e9, results.s1.C*1e12, ...
+            results.s1.shape, results.s1.n, s.F, negTxt);
+
+        drawnow;
+        analysisFig.Visible = 'on';
     end
 
 

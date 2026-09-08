@@ -5,7 +5,6 @@ Parametric metamaterial CAD framework using MATLAB and CST.
 ## Features
 
 - Gielis supershapes
-- Spiral resonators
 - Square SRR
 - SRR / CSRR
 - NxM arrays
@@ -22,7 +21,6 @@ GUI
 
 Geometry Engine
  ├── Gielis
- ├── Spiral
  └── SSRR
 
 CST Engine

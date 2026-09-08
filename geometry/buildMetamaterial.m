@@ -15,6 +15,13 @@ if strcmp(params.type,'gielis')
 
     base_radius = params.a;
 
+    % Split-gap width (mm). 0 -> closed concentric rings (legacy behaviour).
+    if isfield(params,'splitGap') && ~isempty(params.splitGap)
+        splitGap = params.splitGap;
+    else
+        splitGap = 0;
+    end
+
     for rIdx = 0:(params.numRings-1)
 
         radial_offset = rIdx * ...
@@ -25,6 +32,9 @@ if strcmp(params.type,'gielis')
         if scale <= params.thickness
             break;
         end
+
+        % Adjacent rings split on opposite sides (SRR convention).
+        gapPosition = pi/2 + mod(rIdx,2)*pi;
 
         % ========================================================
         % EXACT GIELIS RING
@@ -37,49 +47,9 @@ if strcmp(params.type,'gielis')
             params.n3, ...
             scale, ...
             params.thickness, ...
-            params.res);
-
-        geom{end+1} = struct( ...
-            'outerX', xo, ...
-            'outerY', yo, ...
-            'innerX', xi, ...
-            'innerY', yi);
-    end
-
-
-% ============================================================
-% SPIRAL
-% ============================================================
-elseif strcmp(params.type,'spiral')
-
-    if params.offset <= params.thickness
-
-        params.offset = ...
-            params.thickness + 0.05;
-    end
-
-    for rIdx = 0:(params.numRings-1)
-
-        spiral_a = rIdx * params.offset;
-
-        % ========================================================
-        % CENTERLINE
-        % ========================================================
-        [x,y] = generateSpiral( ...
-            spiral_a, ...
-            params.b, ...
-            params.turns, ...
-            params.res);
-
-        % ========================================================
-        % BUILD CONTOURS
-        % ========================================================
-        [xo,yo,xi,yi] = ...
-            buildClosedContours( ...
-            x, ...
-            y, ...
-            params.thickness, ...
-            params.gap);
+            params.res, ...
+            splitGap, ...
+            gapPosition);
 
         geom{end+1} = struct( ...
             'outerX', xo, ...
