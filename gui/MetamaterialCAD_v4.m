@@ -1442,32 +1442,8 @@ function MetamaterialCAD_v2_AntennaGeneral()
         [rawEntities,autoScale,autoUnit] = ...
             readDXF2D(antennaDXFPath);
 
-        switch dxfUnitsDrop.Value
-
-            case 'Auto (from DXF)'
-                scaleToMM = autoScale;
-                unitName = autoUnit;
-
-            case 'mm'
-                scaleToMM = 1.0;
-                unitName = 'mm (manual)';
-
-            case 'cm'
-                scaleToMM = 10.0;
-                unitName = 'cm (manual)';
-
-            case 'm'
-                scaleToMM = 1000.0;
-                unitName = 'm (manual)';
-
-            case 'inch'
-                scaleToMM = 25.4;
-                unitName = 'inch (manual)';
-
-            otherwise
-                scaleToMM = 1.0;
-                unitName = 'mm';
-        end
+        scaleToMM = autoScale;
+        unitName = autoUnit;
 
         antennaDXFUnitScale = scaleToMM;
         antennaDXFDetectedUnit = unitName;
