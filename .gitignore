@@ -1,0 +1,42 @@
+# MATLAB
+*.asv
+*.m~
+*.autosave
+*.slxc
+*.mex*
+*.fig~
+*.mat~
+
+# MATLAB cache / codegen
+slprj/
+codegen/
+*.prj
+
+# CST temporales y resultados pesados
+*.bak
+*.tmp
+*.log
+*.cache
+*.cst~
+*.mod
+*.results/
+Result/
+Results/
+results/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+
+# Temporales
+*.swp
+*.swo
+
