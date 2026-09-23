@@ -1,4 +1,11 @@
-function cmd = buildCSTCurve(X,Y,Z,name)
+function cmd = buildCSTCurve(X,Y,Z,name,curveFolder)
+%BUILDCSTCURVE Closed 3D polygon for CST.
+%   curveFolder (optional) = CST curve folder name. Default 'Curve1'.
+%   Using a unique folder per export avoids name collisions.
+
+if nargin < 5 || isempty(curveFolder)
+    curveFolder = 'Curve1';
+end
 
 cmd = '';
 
@@ -10,7 +17,7 @@ cmd = [cmd ...
     sprintf('    .Name "%s"\n',name)];
 
 cmd = [cmd ...
-    '    .Curve "Curve1"' newline];
+    sprintf('    .Curve "%s"\n',curveFolder)];
 
 for n = 1:length(X)
 

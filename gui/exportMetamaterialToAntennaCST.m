@@ -1,10 +1,16 @@
 function exportMetamaterialToAntennaCST(geom,params)
-
-% exportMetamaterialToAntennaCST
-
+%EXPORTMETAMATERIALTOANTENNACST Insert the metamaterial conductor
+% (single cell or array) into an existing antenna CST project.
 %
-
-
+% Every export creates its own CST component and curve folder:
+%
+%   Component:     MM_yyyymmdd_HHMMSS
+%   Curve folder:  MMCurves_yyyymmdd_HHMMSS
+%
+% so shape names never collide with previous exports or with the
+% antenna itself. Inside each export the shapes are numbered
+% Outer_001, Outer_002, ... (one per ring of every array cell).
+% To remove one export in CST, delete its component.
 
     if ~isfield(params,'antennaCSTFile') || isempty(params.antennaCSTFile)
         error('No antenna CST project was selected.');
@@ -17,6 +23,17 @@ function exportMetamaterialToAntennaCST(geom,params)
     if ~isfield(params,'antennaZ')
         params.antennaZ = 0;
     end
+
+    if isempty(geom)
+        error('There is no metamaterial geometry to export.');
+    end
+
+    % ============================================================
+    % UNIQUE NAMES FOR THIS EXPORT
+    % ============================================================
+    exportTag   = datestr(now,'yyyymmdd_HHMMSS');
+    component   = ['MM_' exportTag];
+    curveFolder = ['MMCurves_' exportTag];
 
     % ============================================================
     % OPEN CST AND EXISTING ANTENNA PROJECT
@@ -68,19 +85,42 @@ function exportMetamaterialToAntennaCST(geom,params)
 
 
     % ============================================================
+    % DEDICATED COMPONENT FOR THIS EXPORT
+    % ============================================================
+    try
+        invoke(mws, ...
+            'AddToHistory', ...
+            ['New Component ',component], ...
+            sprintf('Component.New "%s"',component));
+    catch
+        % Some CST versions create the component automatically.
+    end
+
+
+    % ============================================================
     % INSERT METAMATERIAL CONDUCTOR
     % ============================================================
     z = params.antennaZ;
+    nShapes = length(geom);
+    nSkipped = 0;
 
-    for k = 1:length(geom)
+    for k = 1:nShapes
 
         g = geom{k};
 
-        outerCurve = sprintf('MM_Outer_%d',k);
-        innerCurve = sprintf('MM_Inner_%d',k);
+        % Skip degenerate contours (fewer than 3 points)
+        if numel(g.outerX) < 3 || numel(g.outerY) < 3
+            nSkipped = nSkipped + 1;
+            continue;
+        end
 
-        outerSheet = sprintf('MM_OuterSheet_%d',k);
-        innerSheet = sprintf('MM_InnerSheet_%d',k);
+        outerCurve = sprintf('Outer_%03d',k);
+        innerCurve = sprintf('Inner_%03d',k);
+
+        outerSheet = sprintf('OuterSheet_%03d',k);
+        innerSheet = sprintf('InnerSheet_%03d',k);
+
+        historyTag = sprintf('%s %03d',component,k);
 
         % --------------------------------------------------------
         % OUTER CURVE
@@ -89,11 +129,12 @@ function exportMetamaterialToAntennaCST(geom,params)
             g.outerX, ...
             g.outerY, ...
             z, ...
-            outerCurve);
+            outerCurve, ...
+            curveFolder);
 
         invoke(mws, ...
             'AddToHistory', ...
-            ['Antenna MM Outer Curve ',num2str(k)], ...
+            ['Outer Curve ',historyTag], ...
             outerCurveCmd);
 
 
@@ -103,11 +144,13 @@ function exportMetamaterialToAntennaCST(geom,params)
         outerSheetCmd = buildCSTSheet( ...
             outerCurve, ...
             outerSheet, ...
-            params.conductorMaterial);
+            params.conductorMaterial, ...
+            component, ...
+            curveFolder);
 
         invoke(mws, ...
             'AddToHistory', ...
-            ['Antenna MM Outer Sheet ',num2str(k)], ...
+            ['Outer Sheet ',historyTag], ...
             outerSheetCmd);
 
 
@@ -115,38 +158,42 @@ function exportMetamaterialToAntennaCST(geom,params)
         % INNER CUTOUT
         %
         % Some geometries (for example current SSRR representation)
-        % may have no inner contour.
+        % have no inner contour.
         % --------------------------------------------------------
-        if ~isempty(g.innerX) && ~isempty(g.innerY)
+        if numel(g.innerX) >= 3 && numel(g.innerY) >= 3
 
             innerCurveCmd = buildCSTCurve( ...
                 g.innerX, ...
                 g.innerY, ...
                 z, ...
-                innerCurve);
+                innerCurve, ...
+                curveFolder);
 
             invoke(mws, ...
                 'AddToHistory', ...
-                ['Antenna MM Inner Curve ',num2str(k)], ...
+                ['Inner Curve ',historyTag], ...
                 innerCurveCmd);
 
             innerSheetCmd = buildCSTSheet( ...
                 innerCurve, ...
                 innerSheet, ...
-                'Vacuum');
+                'Vacuum', ...
+                component, ...
+                curveFolder);
 
             invoke(mws, ...
                 'AddToHistory', ...
-                ['Antenna MM Inner Sheet ',num2str(k)], ...
+                ['Inner Sheet ',historyTag], ...
                 innerSheetCmd);
 
             subtractCmd = buildCSTSubtract( ...
                 outerSheet, ...
-                innerSheet);
+                innerSheet, ...
+                component);
 
             invoke(mws, ...
                 'AddToHistory', ...
-                ['Antenna MM Subtract ',num2str(k)], ...
+                ['Subtract ',historyTag], ...
                 subtractCmd);
         end
     end
@@ -164,5 +211,7 @@ function exportMetamaterialToAntennaCST(geom,params)
         % Non-critical.
     end
 
-    disp('Metamaterial conductor inserted into antenna CST project.');
+    fprintf(['Metamaterial conductor inserted into antenna CST project.\n' ...
+             '  Component: %s  |  shapes: %d  |  skipped: %d\n'], ...
+             component, nShapes - nSkipped, nSkipped);
 end
